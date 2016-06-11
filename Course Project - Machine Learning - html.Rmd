@@ -1,0 +1,104 @@
+---
+title: "Course Project - Machine Learning"
+author: "Koen Spoorenberg"
+date: "11 June 2016"
+output: html_document
+---
+# Overview
+This report is the output of the project for the Coursera course "Machine Learning".
+
+## Background
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website [here:](http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset)).
+
+## Data
+The training data for this project are available [here:](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+
+The test data are available [here:](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+
+## Goal
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases.
+
+# Load needed packages
+
+```{r}
+library(caret)
+library(rpart)
+library(randomForest)
+```
+
+# Getting and cleaning data
+##Getting data
+```{r, results='hide'}
+pml.training <- read.csv(url("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"), header=TRUE, na.string=c("NA" ,""))
+pml.testing <- read.csv(url("http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"), header=TRUE, na.string=c("NA", ""))
+```
+##Partition in training and testing data(60/40%)
+
+```{r, results='hide'}
+library(caret)
+inTrain <- createDataPartition(pml.training$classe, p=0.6, list=FALSE)
+Train <- pml.training[inTrain, ]
+Test <- pml.training[-inTrain, ]
+```
+##What does the data look like
+```{r}
+dim(Train)
+head(Train)
+```
+##Cleaning 
+```{r}
+#first 7 cols are irrelevant
+Train <- Train[,8:length(colnames(Train))]
+
+#delete near zero variance cols
+nzv <- nearZeroVar(Train, saveMetrics=TRUE)
+Train <- Train[,nzv$nzv==FALSE]
+
+#remove cols withmore the 60% Nas
+help.train <- Train
+for(i in 1:length(Train)) {
+    if((sum(is.na( Train[, i] ) ) /nrow(Train)*100) > 60) {
+        for(j in 1:length(help.train)) {
+            if( length( grep(names(Train[i]), names(help.train)[j]) ) == 1)  {
+                help.train <- help.train[ , -j]
+            }   
+        } 
+    }
+}
+Train = help.train
+cols <- colnames(Train)
+Test <- Test[cols]
+```
+
+# Decision trees 
+```{r, cache=FALSE}
+set.seed(123)
+modDecisionTree <- rpart(classe ~ ., data=Train, method="class")
+predictionsDecisionTree <- predict(modDecisionTree, Test, type = "class")
+cmtree <- confusionMatrix(predictionsDecisionTree, Test$classe)
+cmtree$overall["Accuracy"]
+```
+**Accuracy : `r cmtree$overall["Accuracy"]` which isn't very good so let's try something else.**
+
+# Random Forests
+```{r, cache=FALSE}
+set.seed(123)
+modRandomForest <- randomForest(classe ~ ., data=Train)
+predictionsRandomForest <- predict(modRandomForest, Test, type = "class")
+cmrf <- confusionMatrix(predictionsRandomForest, Test$classe)
+cmrf$overall["Accuracy"]
+
+```
+**Accuracy :`r  cmrf$overall["Accuracy"]`!! Pretty good and enough to make adequate prediction on the test dataset **    
+
+# Make predictions on the test dataset with Random Forest model
+```{r}
+
+print(predict(modRandomForest, newdata=pml.testing ))
+```
+
+
+**Used this prediction to answer the Course Project Prediction Quiz resulted in 100% score.:-) 
+Considering the small out-of-sample error not strange. But still model isn't 100% accurate **
+
